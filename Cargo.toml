@@ -1,0 +1,15 @@
+[package]
+name = "ipfsrs"
+version = "0.1.0"
+authors = ["Andrew Chin <achin@eminence32.net>"]
+
+[dependencies]
+rust-base58 = "*"
+
+[dependencies.rust-multihash]
+git="https://github.com/eminence/rust-multihash"
+rev="priv_merge"
+
+[dependencies.protobuf]
+git = "https://github.com/stepancheg/rust-protobuf.git"
+
