@@ -7,6 +7,7 @@ extern crate ipfsrs;
 use ipfsrs::unixfs::Data;
 use ipfsrs::merkledag::PBNode;
 use ipfsrs::{get_blockfile_from_hash};
+use ipfsrs::multihash::*;
 
 use std::fs::File;
 use rust_multihash::{HashTypes, multihash};
@@ -18,7 +19,8 @@ use rust_base58::ToBase58;
 fn main() {
     use std::env;
 
-    let blockfile = get_blockfile_from_hash(&env::args().nth(1).unwrap());
+    let hash = MultihashStr(env::args().nth(1).unwrap());
+    let blockfile = get_blockfile_from_hash(hash);
     println!("opening {:?}", blockfile);
     let mut f = File::open(blockfile).unwrap();
     let mut bytes = Vec::new();
@@ -60,7 +62,7 @@ fn main() {
     println!("num links: {}", links.len());
     for link in links {
         let pretty_hashname = link.get_Hash().to_base58();
-        let hashfile = get_blockfile_from_hash(&pretty_hashname);
+        let hashfile = get_blockfile_from_hash(MultihashBytes(link.get_Hash().to_vec()));
         println!("  link {} -> {:?} {}", link.get_Name(), pretty_hashname, link.get_Tsize());
         total_size += (link.get_Tsize() as u64);
 

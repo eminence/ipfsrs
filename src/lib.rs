@@ -1,15 +1,96 @@
 #![feature(step_by)]
+#![feature(path_ext)]
 
 extern crate rust_base58;
 extern crate rust_multihash;
 extern crate protobuf;
     
 use std::path::PathBuf;
+use std::cell::RefCell;
 use rust_base58::base58::ToBase58;
 use rust_base58::FromBase58;
+use rust_multihash::{multihash, HashTypes};
+use protobuf::core::Message;
 
 pub mod unixfs;
 pub mod merkledag;
+
+pub mod multihash;
+
+use multihash::*;
+
+
+/// A wrapper around a PBNode and multihash
+///
+/// Given a PBNode, you sometimes want to operate on the node object itself, and other times you
+/// just want to print or use the hash.  Instead of recalculating the hash every time, calc it once
+/// and then keep them together
+///
+#[derive(Debug)]
+pub struct Node {
+    node: Option<merkledag::PBNode>,
+    pub mh_bytes: MultihashBytes,
+    pub mh_str: MultihashStr,
+}
+
+impl Node {
+    /// Calculates hash from an actual object
+    pub fn from_pb(node: merkledag::PBNode) -> Node {
+        
+        let msg: Vec<u8> = node.write_to_bytes().unwrap();
+        let mh = multihash(HashTypes::SHA2256, msg).unwrap();
+        let mh_str = mh.to_base58();
+
+        Node{ node: Some(node), mh_bytes: multihash::MultihashBytes(mh), mh_str: multihash::MultihashStr(mh_str)}
+    }
+
+    pub fn from_mh<M: Multihash>(m: M) -> Node {
+        Node{node: None, mh_bytes: MultihashBytes(m.as_bytes()), mh_str: MultihashStr(m.base58())}
+
+    }
+
+    /// Load the given object from disk
+    pub fn load_from_disk(&mut self) {
+        use std::io::Read;
+        if self.node.is_none() {
+            // load the object from disk
+            let obj_path = get_blockfile_from_hash(&self.mh_bytes);
+            let mut f = std::fs::File::open(&obj_path).unwrap();
+            let mut b = Vec::new();
+            f.read_to_end(&mut b);
+            let mut pbn = merkledag::PBNode::new();
+            pbn.merge_from_bytes(&b);
+            self.node = Some(pbn);
+        }
+    }
+
+    pub fn get_node(&self) -> &merkledag::PBNode {
+        if let Some(ref n) = self.node {
+            n
+        } else {
+            panic!();
+        }
+    }
+}
+
+impl AsRef<multihash::MultihashBytes> for Node {
+    fn as_ref(&self) -> &multihash::MultihashBytes {
+        &self.mh_bytes
+    }
+}
+
+impl AsRef<multihash::MultihashStr> for Node {
+    fn as_ref(&self) -> &multihash::MultihashStr {
+        &self.mh_str
+    }
+}
+
+impl AsRef<merkledag::PBNode> for Node {
+    fn as_ref(&self) -> &merkledag::PBNode {
+        self.get_node()
+    }
+}
+    
 
 pub fn bin_to_hex(bin: &Vec<u8>) -> String {
     use std::borrow::Borrow;
@@ -58,10 +139,11 @@ fn test_bin_to_hex() {
     assert_eq!(s, "122070286b9afa6620a66f715c7020d68af3d10e1a497971629c07606bfdb812303d");
 }
 
-pub fn get_blockfile_from_hash(hash: &str) -> PathBuf {
+/// Given a hex-encoded hash, return the IPFS_PATH that should contain this data
+pub fn get_blockfile_from_hash<M: multihash::Multihash>(hash: M) -> PathBuf {
     use std::env;
 
-    let hex = bin_to_hex(&hash.from_base58().unwrap());
+    let hex = hash.as_hex();
     let mut ipfs_path: PathBuf = env::var("IPFS_PATH").and_then(|p| Ok(PathBuf::from(p))).unwrap_or_else(|_| { env::home_dir().unwrap().join(".ipfs")});
 
     ipfs_path.push("blocks");
@@ -72,12 +154,32 @@ pub fn get_blockfile_from_hash(hash: &str) -> PathBuf {
     ipfs_path
 }
 
+/// Writes a PBNode to disk to ~/.ipfs/blocks
+pub fn write_node_to_disk(node: &Node) {
+    use std::fs::PathExt;
+
+    let pbnode = node.get_node();
+    let msg: Vec<u8> = pbnode.write_to_bytes().unwrap();
+
+    let path = get_blockfile_from_hash(&node.mh_bytes);
+
+    {
+        let d = path.parent().unwrap();
+        if !d.exists() {
+            std::fs::create_dir(&d).unwrap();
+        }
+
+        let mut f = std::fs::File::create(&path).unwrap();
+        pbnode.write_to_writer(&mut f).unwrap();
+    }
+
+}
+
 
 #[test]
 fn testmain() {
     use unixfs::Data_DataType;
     use rust_multihash::{multihash, HashTypes};
-    use protobuf::core::Message;
     use protobuf::repeated::RepeatedField;
     
 
@@ -91,7 +193,6 @@ fn testmain() {
 #[test]
 fn test_oldmain_old() {
     use rust_multihash::{multihash, HashTypes};
-    use protobuf::core::Message;
 
     let mut block = merkledag::PBNode::new();
     block.set_Data("hello world".as_bytes().to_vec());
