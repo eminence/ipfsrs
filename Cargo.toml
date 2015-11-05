@@ -5,6 +5,9 @@ authors = ["Andrew Chin <achin@eminence32.net>"]
 
 [dependencies]
 rust-base58 = "*"
+rustc-serialize = "0.3"
+#num = "*"
+openssl = "0.6"
 
 [dependencies.rust-multihash]
 git="https://github.com/eminence/rust-multihash"
@@ -12,4 +15,7 @@ rev="priv_merge"
 
 [dependencies.protobuf]
 git = "https://github.com/stepancheg/rust-protobuf.git"
+
+#[dependencies.asn1]
+#git = "https://github.com/alex/rust-asn1.git"
 

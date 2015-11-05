@@ -1,19 +1,27 @@
 #![feature(step_by)]
-#![feature(path_ext)]
+#![feature(path_ext_deprecated)]
 
 extern crate rust_base58;
 extern crate rust_multihash;
 extern crate protobuf;
-    
+extern crate rustc_serialize;
+//extern crate asn1;
+//extern crate num;
+extern crate openssl;
+
 use std::path::PathBuf;
 use std::cell::RefCell;
+
 use rust_base58::base58::ToBase58;
 use rust_base58::FromBase58;
 use rust_multihash::{multihash, HashTypes};
 use protobuf::core::Message;
+use rustc_serialize::base64::{ToBase64,FromBase64, Config, CharacterSet, Newline};
 
 pub mod unixfs;
 pub mod merkledag;
+pub mod dht;
+pub mod crypto;
 
 pub mod multihash;
 
@@ -68,7 +76,7 @@ impl Node {
         if let Some(ref n) = self.node {
             n
         } else {
-            panic!();
+            panic!("This node should be loaded from disk first");
         }
     }
 }
@@ -175,17 +183,30 @@ pub fn write_node_to_disk(node: &Node) {
 
 }
 
+/// Given a base64-encoded key from an ipfs config file, produce a PKey
+pub fn read_privkey(privkey_str: &str) -> openssl::crypto::pkey::PKey {
+    let bytes = privkey_str.from_base64().unwrap();
+    let mut privkey = crypto::PrivateKey::new();
+    privkey.merge_from_bytes(&bytes).unwrap();
+
+    let privkey_bytes: Vec<u8> = privkey.take_Data();
+    let mut pkey = openssl::crypto::pkey::PKey::new();
+    pkey.load_priv(&privkey_bytes);
+    pkey
+}
+
+pub fn get_pubkey_id(pkey: openssl::crypto::pkey::PKey) {
+    let pubkey = pkey.save_pub();
+    let mut pubkey_pb = crypto::PublicKey::new();
+    pubkey_pb.set_Data(pubkey);
+    pubkey_pb.set_Type(crypto::KeyType::RSA);
+    let pubkey_bytes = pubkey_pb.write_to_bytes().unwrap();
+    let pubkey_mh = multihash(HashTypes::SHA2256, pubkey_bytes).unwrap();
+    let pubkey_encoded = &pubkey_mh.to_base58();
+}
 
 #[test]
 fn testmain() {
-    use unixfs::Data_DataType;
-    use rust_multihash::{multihash, HashTypes};
-    use protobuf::repeated::RepeatedField;
-    
-
-    // create a unixfs node with a "hello world" data
-    let unix1 = unixfs::Data::new();
-    unix1.set_Data("hello world".as_bytes().to_vec());
 
 }
 

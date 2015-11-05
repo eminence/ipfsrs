@@ -13,7 +13,6 @@ use std::fs::File;
 use rust_multihash::{HashTypes, multihash};
 use std::io::Read;
 use protobuf::core::Message;
-use std::borrow::Borrow;
 use rust_base58::ToBase58;
 
 fn main() {
@@ -49,14 +48,11 @@ fn main() {
                 println!("  blocksize: {:?}", bs);
             }
 
-            // patch by adding data
-            data_obj.set_Data("data from achin".as_bytes().to_vec());
-            let mut out = File::create("new_obj.dat").unwrap();
-            data_obj.write_to_writer(&mut out);
-
         } else {
             println!("Could not be decoded as a unixfs object");
         }
+    } else {
+        println!("This PBNode has no data field (since it is optional)");
     }
     let links = pbnode.get_Links();
     println!("num links: {}", links.len());

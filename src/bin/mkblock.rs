@@ -1,4 +1,4 @@
-#![feature(path_ext)]
+#![feature(path_ext_deprecated)]
 
 extern crate ipfsrs;
 extern crate rust_base58;
