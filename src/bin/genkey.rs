@@ -13,6 +13,7 @@ use protobuf::core::Message;
 use ipfsrs::crypto;
 
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use std::io::Write;
 
 static key_count: AtomicUsize = ATOMIC_USIZE_INIT;
 const MAX_KEYS: usize = 5000;
@@ -20,6 +21,7 @@ const MAX_KEYS: usize = 5000;
 
 fn run() {
     use openssl::crypto::pkey::PKey;
+    let wants = vec!();
 
     loop {
         let mut pkey = PKey::new();
@@ -33,7 +35,8 @@ fn run() {
         let pubkey_bytes = pubkey_pb.write_to_bytes().unwrap();
         let pubkey_mh = multihash(HashTypes::SHA2256, pubkey_bytes).unwrap();
         let peerid = pubkey_mh.to_base58();
-        if peerid.contains("QmA") {
+        let short = peerid.to_lowercase();
+        if wants.iter().any(|x| short.contains(x)) {
             println!("PeerID: \"{}\"", pubkey_mh.to_base58());
 
             let mut seckey_pb = crypto::PrivateKey::new();
@@ -44,6 +47,9 @@ fn run() {
             let cfg = Config{char_set: CharacterSet::Standard, newline: Newline::LF, pad: true, line_length: None};
             let seckey_encoded = &seckey_bytes.to_base64(cfg);
             println!("PrivKey: \"{}\"", seckey_encoded);
+            if let Ok(mut f) = std::fs::File::create(&peerid) {
+                f.write_all(seckey_encoded.as_bytes());
+            }
         }
 
         let count = key_count.fetch_add(1, Ordering::Relaxed);
